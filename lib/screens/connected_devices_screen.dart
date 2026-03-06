@@ -1,10 +1,8 @@
 import 'package:flutter/cupertino.dart';
 
-class ConnectedDevicesScreen extends StatelessWidget {
+class ConnectedDevicesScreen extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    // TODO: implement build
+  State createState() {
     throw UnimplementedError();
   }
-
 }
