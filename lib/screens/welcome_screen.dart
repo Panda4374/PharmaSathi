@@ -66,7 +66,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
 
             // devices screen, this thing depends on number of boxes added
-            // title <space> tag <space> progress % <space> progress bar
+            // title <space> tag <space> progress % <space> progress bar <space>
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
