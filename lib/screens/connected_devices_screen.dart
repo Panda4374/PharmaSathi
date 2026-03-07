@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../app_colors.dart';
 import '../models/pharma_device.dart';
 import '../providers/device_provider.dart';
+import 'bedside_unit_screen.dart';
+import 'ble_scan_screen.dart';
 
 /*
 * The main screen which is shown after the welcome/loading screen.
@@ -62,19 +64,19 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                     if (provider.hasDevices) ...[
                       ...provider.devices.map((device) => Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        //child: _buildDeviceCard(context, device),
+                        child: _buildDeviceCard(context, device),
                       )),
                       const SizedBox(height: 8),
                     ],
-                    //_buildAddBoxButton(context),
+                    _buildAddBoxButton(context),
                     const SizedBox(height: 24),
-                    //_buildHealthTip(),
+                    _buildHealthTip(),
                   ],
                 ),
               ),
             ),
           ),
-          //bottomNavigationBar: _buildBottomNavBar(),
+          bottomNavigationBar: _buildBottomNavBar(),
         );
       },
     );
@@ -125,6 +127,157 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
             )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // box card which shows up on the list of connected devices
+  Widget _buildDeviceCard(BuildContext context, PharmaDevice device) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gray300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // header row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.gray100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.inbox_outlined, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        device.name,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time,
+                              size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(
+                            device.lastSynced,
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: device.status == 'online'
+                        ? AppColors.primary
+                        : AppColors.gray200,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    device.status,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: device.status == 'online'
+                          ? Colors.black
+                          : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Unconfigured warning
+            if (!device.isConfigured) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8ED),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFFD88A)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded,
+                        color: Color(0xFFD97706), size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Not configured yet — open dashboard to set up medicines.',
+                        style:
+                        TextStyle(fontSize: 12, color: Color(0xFFD97706)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            // stats row
+            Row(
+              children: [
+                Expanded(
+                    child: _statBox(
+                        'COMPARTMENTS', '${device.compartmentCount} Slots')),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _statBox(
+                        'MEDICINES', '${device.medicines.length} Set')),
+                const SizedBox(width: 12),
+                Expanded(child: _statBox('BATTERY', '${device.battery}%')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // open dashboard button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BedsideUnitScreen(deviceId: device.id),
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Open Dashboard',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    SizedBox(width: 8),
+                    Icon(Icons.arrow_forward, size: 18),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

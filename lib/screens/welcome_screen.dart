@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../app_colors.dart';
 import 'connected_devices_screen.dart';
 
+/*
+* Basic welcome screen which is shown to the user upon starting the app.
+*/
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
