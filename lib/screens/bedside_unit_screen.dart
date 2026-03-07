@@ -52,6 +52,11 @@ class BedsideUnitScreen extends StatelessWidget {
                     _buildSetupPrompt(context, device)
                   else if (device.medicines.isNotEmpty)
                     _buildNextDoseCard(device),
+                  // show expiry warnings if any medicines are expired or expiring soon
+                  if (device.medicines.any((m) => m.isExpired || m.expiresWithin(30))) ...[
+                    const SizedBox(height: 16),
+                    _buildExpiryBanner(context, device),
+                  ],
                   const SizedBox(height: 24),
                   // configuration section header
                   Row(
@@ -88,6 +93,72 @@ class BedsideUnitScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  // expiry banner — shown when any configured medicines are expired or expiring within 30 days
+  Widget _buildExpiryBanner(BuildContext context, PharmaDevice device) {
+    final expired = device.medicines.where((m) => m.isExpired).toList();
+    final soon = device.medicines.where((m) => m.expiresWithin(30)).toList();
+    final isError = expired.isNotEmpty;
+
+    final bgColor = isError ? const Color(0xFFFFEBEE) : const Color(0xFFFFF8E1);
+    final borderColor = isError ? const Color(0xFFEF9A9A) : const Color(0xFFFFCC02);
+    final iconColor = isError ? Colors.red : const Color(0xFFFFA000);
+    final icon = isError ? Icons.error_outline : Icons.warning_amber_rounded;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isError ? 'Expired Medicine' : 'Expiry Warning',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: iconColor),
+                ),
+                const SizedBox(height: 4),
+                if (expired.isNotEmpty)
+                  Text(
+                    'Expired: ${expired.map((m) => m.medicineName).join(', ')}',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                if (soon.isNotEmpty)
+                  Text(
+                    'Expiring soon: ${soon.map((m) => m.medicineName).join(', ')}',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+              ],
+            ),
+          ),
+          // tap to go to configure screen and update the medicine
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => ConfigureBoxScreen(deviceId: device.id)),
+            ),
+            child: const Text('Update',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -189,6 +260,31 @@ class BedsideUnitScreen extends StatelessWidget {
               const SizedBox(width: 4),
               Text('Scheduled for $timeStr',
                   style: const TextStyle(fontSize: 14, color: Colors.grey)),
+              // show expiry date inline if set
+              if (next.expiryDate != null) ...[
+                const SizedBox(width: 12),
+                Icon(
+                  next.isExpired ? Icons.error_outline : Icons.event_outlined,
+                  size: 14,
+                  color: next.isExpired
+                      ? AppColors.danger
+                      : next.expiresWithin(30)
+                      ? const Color(0xFFFFA000)
+                      : Colors.grey,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  'Exp: ${_formatDate(next.expiryDate!)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: next.isExpired
+                        ? AppColors.danger
+                        : next.expiresWithin(30)
+                        ? const Color(0xFFFFA000)
+                        : Colors.grey,
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 16),
@@ -349,9 +445,31 @@ class BedsideUnitScreen extends StatelessWidget {
             child: _compartmentCard(
               slotLabel: label,
               medLabel: med != null ? med.medicineName.toUpperCase() : 'EMPTY',
-              bgColor: med != null ? AppColors.primary100 : AppColors.gray100,
-              icon: med != null ? Icons.check_circle_outline : Icons.add,
-              iconColor: med != null ? AppColors.primary : Colors.grey,
+              // colour-code the card based on expiry status
+              bgColor: med != null
+                  ? (med.isExpired
+                  ? const Color(0xFFFFEBEE)
+                  : med.expiresWithin(30)
+                  ? const Color(0xFFFFF8E1)
+                  : AppColors.primary100)
+                  : AppColors.gray100,
+              icon: med != null
+                  ? (med.isExpired
+                  ? Icons.error_outline
+                  : med.expiresWithin(30)
+                  ? Icons.warning_amber_rounded
+                  : Icons.check_circle_outline)
+                  : Icons.add,
+              iconColor: med != null
+                  ? (med.isExpired
+                  ? AppColors.danger
+                  : med.expiresWithin(30)
+                  ? const Color(0xFFFFA000)
+                  : AppColors.primary)
+                  : Colors.grey,
+              expiryLabel: med?.expiryDate != null
+                  ? _formatDate(med!.expiryDate!)
+                  : null,
             ),
           ),
         );
@@ -365,9 +483,10 @@ class BedsideUnitScreen extends StatelessWidget {
     required Color bgColor,
     required IconData icon,
     required Color iconColor,
+    String? expiryLabel, // shown below medicine name if set
   }) {
     return Container(
-      height: 90,
+      height: expiryLabel != null ? 110 : 90,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
           color: bgColor, borderRadius: BorderRadius.circular(12)),
@@ -387,6 +506,15 @@ class BedsideUnitScreen extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+          // expiry date label, colour-coded to match the card state
+          if (expiryLabel != null)
+            Text(
+              expiryLabel,
+              style: TextStyle(fontSize: 8, color: iconColor),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
         ],
       ),
     );
@@ -415,6 +543,15 @@ class BedsideUnitScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // formats a DateTime as 'D Mon YYYY'
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   String _fmt(TimeOfDay t) {

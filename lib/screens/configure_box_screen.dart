@@ -35,6 +35,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
   bool _pushNotifications = true;
   String _repeatFrequency = 'Every day';
   String _snoozeDuration = '10 mins';
+  DateTime? _expiryDate; // expiry date for the medicine in the current slot
 
   bool _isSending = false;
 
@@ -44,7 +45,8 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
     if (cfg == null) return false;
     return cfg.medicineName.trim().isNotEmpty &&
         cfg.amount > 0 &&
-        cfg.times.isNotEmpty;
+        cfg.times.isNotEmpty &&
+        cfg.expiryDate != null; // expiry date is required
   }
 
   bool get _hasAnyCompleteSlot =>
@@ -53,7 +55,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
   bool get _currentSlotIsIncomplete {
     final name = _nameCtrl.text.trim();
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
-    return name.isEmpty || amount <= 0 || _times.isEmpty;
+    return name.isEmpty || amount <= 0 || _times.isEmpty || _expiryDate == null;
   }
 
   String get _missingFieldsText {
@@ -61,6 +63,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
       if (_nameCtrl.text.trim().isEmpty) 'medicine name',
       if ((double.tryParse(_amountCtrl.text.trim()) ?? 0.0) <= 0) 'amount',
       if (_times.isEmpty) 'at least one scheduled time',
+      if (_expiryDate == null) 'expiry date',
     ];
     return 'Missing: ${missing.join(', ')}.';
   }
@@ -105,6 +108,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
         _pushNotifications = true;
         _repeatFrequency = cfg.repFrequency;
         _snoozeDuration = cfg.snoozeDur;
+        _expiryDate = cfg.expiryDate;
       } else {
         _nameCtrl.text = '';
         _amountCtrl.text = '';
@@ -112,6 +116,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
         _pushNotifications = true;
         _repeatFrequency = 'Every day';
         _snoozeDuration = '10 mins';
+        _expiryDate = null;
       }
     });
   }
@@ -130,6 +135,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
       times: List.from(_times),
       repFrequency: _repeatFrequency,
       snoozeDur: _snoozeDuration,
+      expiryDate: _expiryDate,
     );
   }
 
@@ -142,6 +148,7 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
       _pushNotifications = true;
       _repeatFrequency = 'Every day';
       _snoozeDuration = '10 mins';
+      _expiryDate = null;
     });
   }
 
@@ -185,6 +192,10 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
         't': cfg.times.map((t) => t.hour * 60 + t.minute).toList(),
         'r': _repeatToInt(cfg.repFrequency),
         's': _snoozeToInt(cfg.snoozeDur),
+        // expiry sent as yyyy-mm-dd
+        'exp': cfg.expiryDate != null
+            ? '${cfg.expiryDate!.year}-${cfg.expiryDate!.month.toString().padLeft(2, '0')}-${cfg.expiryDate!.day.toString().padLeft(2, '0')}'
+            : null,
       })
           .toList(),
     };
@@ -217,6 +228,34 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
     );
     Provider.of<DeviceProvider>(context, listen: false).updateDevice(updated);
     Navigator.pop(context);
+  }
+
+  // expiry date picker
+  Future<void> _pickExpiryDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _expiryDate ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 10),
+      helpText: 'Select Expiry Date',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _expiryDate = picked);
+  }
+
+  // formats a DateTime as 'D Mon YYYY' for display
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   // build
@@ -494,6 +533,114 @@ class _ConfigureBoxScreenState extends State<ConfigureBoxScreen> {
             ],
           ),
         ),
+        // expiry date row
+        _buildExpiryRow(),
+      ],
+    );
+  }
+
+  // expiry date row shown inside medicine details
+  Widget _buildExpiryRow() {
+    final isExpired = _expiryDate != null &&
+        _expiryDate!.isBefore(DateTime.now());
+    final isSoon = _expiryDate != null &&
+        !isExpired &&
+        _expiryDate!.isBefore(DateTime.now().add(const Duration(days: 30)));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Text('Expiry Date',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _pickExpiryDate,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isExpired
+                  ? const Color(0xFFFFEBEE)
+                  : isSoon
+                  ? const Color(0xFFFFF8E1)
+                  : AppColors.gray100,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isExpired
+                    ? AppColors.danger
+                    : isSoon
+                    ? const Color(0xFFFFA000)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.event_outlined,
+                  size: 20,
+                  color: isExpired
+                      ? AppColors.danger
+                      : isSoon
+                      ? const Color(0xFFFFA000)
+                      : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _expiryDate != null
+                        ? _formatDate(_expiryDate!)
+                        : 'Tap to set expiry date',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: _expiryDate != null
+                          ? FontWeight.w500
+                          : FontWeight.normal,
+                      color: isExpired
+                          ? AppColors.danger
+                          : isSoon
+                          ? const Color(0xFFFFA000)
+                          : _expiryDate != null
+                          ? Colors.black87
+                          : Colors.grey,
+                    ),
+                  ),
+                ),
+                if (_expiryDate != null)
+                  GestureDetector(
+                    onTap: () => setState(() => _expiryDate = null),
+                    child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                  )
+                else
+                  const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+        if (isExpired)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: const [
+                Icon(Icons.error_outline, size: 14, color: AppColors.danger),
+                SizedBox(width: 4),
+                Text('This medicine has expired',
+                    style: TextStyle(fontSize: 12, color: AppColors.danger)),
+              ],
+            ),
+          )
+        else if (isSoon)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded,
+                    size: 14, color: Color(0xFFFFA000)),
+                SizedBox(width: 4),
+                Text('Expiring within 30 days',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFFFA000))),
+              ],
+            ),
+          ),
       ],
     );
   }
